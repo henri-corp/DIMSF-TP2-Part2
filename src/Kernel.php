@@ -3,6 +3,8 @@
 namespace App;
 
 use App\Controller\HomeController;
+use Doctrine\ORM\EntityManager;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -10,10 +12,12 @@ use Symfony\Component\HttpFoundation\Response;
 class Kernel
 {
     private Request $request;
+    private $entityManager = null;
 
     public function __construct()
     {
         $this->request = Request::createFromGlobals();
+        $this->entityManager = $this->buildEntityManager();
     }
 
     public function run()
@@ -31,7 +35,7 @@ class Kernel
         $method = "index";
         if (strlen($path) > 0) {
             // if subroute is not specified, it is merged to /index
-            list($controller, $method) = [...explode("/", $path), "index"] ;
+            list($controller, $method) = [...explode("/", $path), "index"];
             $className = "App\\Controller\\" . ucfirst($controller) . "Controller";
             if ($className === $defaultController && $method === "index") {
                 return new RedirectResponse("/");
@@ -52,7 +56,9 @@ class Kernel
         $reflexion = new \ReflectionMethod($className, $method);
         $params = $reflexion->getParameters();
         $autoInject = [
-            Request::class => $this->request
+            Request::class => $this->request,
+            EntityManagerInterface::class => $this->entityManager,
+
         ];
         $paramValues = [];
         foreach ($params as $param) {
@@ -64,4 +70,26 @@ class Kernel
         }
         return $paramValues;
     }
+
+    private function buildEntityManager(): EntityManager
+    {
+        // Create a simple "default" Doctrine ORM configuration for Annotations
+        $isDevMode = true;
+        $config = Setup::createAnnotationMetadataConfiguration(array(__DIR__ . "/Entity"), $isDevMode,null, null, false);
+        $conn = array(
+            'driver' => 'pdo_sqlite',
+            'path' => __DIR__ . '/../db.sqlite',
+        );
+
+        // obtaining the entity manager
+        return EntityManager::create($conn, $config);
+    }
+
+    public function getEntityManager(): EntityManager
+    {
+        return $this->entityManager;
+
+    }
+
+
 }
